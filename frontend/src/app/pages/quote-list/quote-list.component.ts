@@ -8,25 +8,7 @@ import { QuoteResponse } from '../../models/quote.model';
 import { Product } from '../../models/product.model';
 
 /**
- * Component for displaying a list of all quotes
- *
- * TODO: Candidate must implement the following:
- * 1. Load all quotes on component initialization using QuoteService.getQuotes()
- *
- * 2. Load products for filter dropdown using ProductService.getProducts()
- *
- * 3. Implement filtering in applyFilters():
- *    - Build filter object from selectedProductId and minPrice
- *    - Call QuoteService.getQuotes(filters)
- *    - Update filteredQuotes with results
- *
- * 4. Implement sorting in sortQuotes():
- *    - Sort by creation date (ascending/descending)
- *    - Sort by final price (ascending/descending)
- *
- * 5. Implement viewQuote() to navigate to /quotes/:id
- *
- * 6. Handle loading and error states
+ * Component for displaying the full list of quotes with filtering and sorting.
  */
 @Component({
   selector: 'app-quote-list',
@@ -56,38 +38,70 @@ export class QuoteListComponent implements OnInit {
     private router: Router
   ) {}
 
+  /**
+   * On init: load products for the filter dropdown and fetch all quotes.
+   */
   ngOnInit(): void {
-    // TODO: Load products for filter dropdown
-    // TODO: Load quotes from QuoteService
-    // TODO: Handle loading and error states
+    // Load products for the filter dropdown (runs in parallel with quotes)
+    this.productService.getProducts().subscribe({
+      next: (products) => (this.products = products),
+      error: (err) => console.error('Failed to load products for filter:', err.message)
+    });
+
+    // Load all quotes
+    this.loading = true;
+    this.quoteService.getQuotes().subscribe({
+      next: (quotes) => {
+        this.quotes = quotes;
+        this.filteredQuotes = [...quotes];
+        this.sortQuotes();
+        this.loading = false;
+      },
+      error: (err) => {
+        this.errorMessage = err.message;
+        this.loading = false;
+      }
+    });
   }
 
   /**
-   * Apply filters to the quotes
-   *
-   * TODO: Implement filtering
-   * - Get filter values from component properties
-   * - Call quoteService.getQuotes(filters)
-   * - Update filteredQuotes with results
-   * - Call sortQuotes() after receiving results
-   * - Handle errors
+   * Apply current filter values.
+   * Builds an optional filter object and fetches matching quotes from the backend.
    */
   applyFilters(): void {
-    // TODO: Implement filtering logic
-    console.log('Filters applied (TODO: implement)');
+    this.loading = true;
+    this.errorMessage = null;
+
+    const filters: { productId?: number; minPrice?: number } = {};
+    if (this.selectedProductId) filters.productId = Number(this.selectedProductId);
+    if (this.minPrice) filters.minPrice = Number(this.minPrice);
+
+    this.quoteService.getQuotes(filters).subscribe({
+      next: (quotes) => {
+        this.filteredQuotes = quotes;
+        this.sortQuotes();
+        this.loading = false;
+      },
+      error: (err) => {
+        this.errorMessage = err.message;
+        this.loading = false;
+      }
+    });
   }
 
   /**
-   * Reset all filters and reload all quotes
+   * Reset all filters and reload the full list.
    */
   resetFilters(): void {
     this.selectedProductId = null;
     this.minPrice = null;
-    // TODO: Reload all quotes
+    this.filteredQuotes = [...this.quotes];
+    this.sortQuotes();
   }
 
   /**
-   * Toggle sort direction or change sort field
+   * Toggle sort direction or change the active sort field.
+   * Called from the template header click events.
    */
   changeSortField(field: 'date' | 'price'): void {
     if (this.sortField === field) {
@@ -100,24 +114,26 @@ export class QuoteListComponent implements OnInit {
   }
 
   /**
-   * Sort filteredQuotes in memory
-   *
-   * TODO: Implement sorting
-   * - For 'date': sort by createdAt
-   * - For 'price': sort by finalPrice
-   * - Apply sortDirection (asc/desc)
+   * Sort filteredQuotes in memory by the active field and direction.
+   * - date: sort by createdAt (ISO timestamp string comparison works correctly)
+   * - price: sort by finalPrice (numeric)
    */
   private sortQuotes(): void {
-    // TODO: Implement in-memory sorting of this.filteredQuotes
+    this.filteredQuotes.sort((a, b) => {
+      let comparison = 0;
+      if (this.sortField === 'date') {
+        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (this.sortField === 'price') {
+        comparison = a.finalPrice - b.finalPrice;
+      }
+      return this.sortDirection === 'asc' ? comparison : -comparison;
+    });
   }
 
   /**
-   * Navigate to quote detail page
-   *
-   * TODO: Implement navigation to /quotes/:id
-   * Hint: use this.router.navigate(['/quotes', id])
+   * Navigate to the detail page for a specific quote.
    */
   viewQuote(id: number): void {
-    // TODO: Navigate to quote detail
+    this.router.navigate(['/quotes', id]);
   }
 }

@@ -5,21 +5,8 @@ import { QuoteService } from '../../services/quote.service';
 import { QuoteResponse } from '../../models/quote.model';
 
 /**
- * Component for displaying the details of a single quote
- *
- * TODO: Candidate must implement the following:
- * 1. Get quote ID from route parameters (hint: this.route.snapshot.paramMap.get('id'))
- *
- * 2. Load quote details from QuoteService.getQuote(id)
- *
- * 3. Display complete quote information:
- *    - Client details (name, age)
- *    - Insurance details (product, zone)
- *    - Pricing breakdown (base price, applied rules, final price)
- *
- * 4. Handle loading state while fetching data
- *
- * 5. Handle error state if quote cannot be loaded
+ * Component for displaying the complete details of a single quote.
+ * Shows client info, insurance details, and full pricing breakdown with applied rules.
  */
 @Component({
   selector: 'app-quote-detail',
@@ -38,10 +25,30 @@ export class QuoteDetailComponent implements OnInit {
     private route: ActivatedRoute
   ) {}
 
+  /**
+   * Read the quote ID from the route, then fetch the full quote details.
+   * Route: /quotes/:id
+   */
   ngOnInit(): void {
-    // TODO: Get quote ID from route parameters
-    // TODO: Load quote from QuoteService
-    // TODO: Handle loading and error states
-    console.log('Quote detail component initialized (TODO: implement)');
+    const idParam = this.route.snapshot.paramMap.get('id');
+
+    if (!idParam || isNaN(Number(idParam))) {
+      this.errorMessage = 'Invalid quote ID in URL.';
+      return;
+    }
+
+    const id = Number(idParam);
+    this.loading = true;
+
+    this.quoteService.getQuote(id).subscribe({
+      next: (quote) => {
+        this.quote = quote;
+        this.loading = false;
+      },
+      error: (err) => {
+        this.errorMessage = 'Could not load quote: ' + err.message;
+        this.loading = false;
+      }
+    });
   }
 }

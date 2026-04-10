@@ -5,9 +5,10 @@ import { Router, RouterModule } from '@angular/router';
 import { QuoteService } from '../../services/quote.service';
 import { ProductService } from '../../services/product.service';
 import { Product } from '../../models/product.model';
+import { QuoteRequest } from '../../models/quote.model';
 
 /**
- * Available zones with their codes (must match backend data.sql)
+ * Available geographic zones — codes must match backend data.sql exactly.
  */
 const ZONES = [
   { code: 'TUN', name: 'Grand Tunis' },
@@ -16,19 +17,8 @@ const ZONES = [
 ];
 
 /**
- * Component for creating a new quote
- *
- * TODO: Candidate must implement the following:
- * 1. Load products from ProductService on init and populate the product dropdown
- *
- * 2. Implement form submission in onSubmit():
- *    - Validate form before submission
- *    - Build a QuoteRequest from form values
- *    - Call QuoteService.createQuote()
- *    - Show success/error message
- *    - Navigate to quote detail page on success
- *
- * 3. Handle loading state while API request is in progress
+ * Component for creating a new insurance quote.
+ * Uses Angular Reactive Forms with full validation matching backend constraints.
  */
 @Component({
   selector: 'app-quote-form',
@@ -60,58 +50,77 @@ export class QuoteFormComponent implements OnInit {
     });
   }
 
+  /**
+   * Load available products from the backend to populate the product dropdown.
+   */
   ngOnInit(): void {
-    // TODO: Load products from ProductService
-    // TODO: Populate this.products array
-    // TODO: Handle loading and error states
+    this.productService.getProducts().subscribe({
+      next: (products) => {
+        this.products = products;
+      },
+      error: (err) => {
+        this.errorMessage = 'Failed to load products: ' + err.message;
+      }
+    });
   }
 
   /**
-   * Submit the form
-   *
-   * TODO: Implement form submission
-   * - Check if form is valid (mark all fields as touched if invalid)
-   * - Set loading state
-   * - Build QuoteRequest: { productId: number, zoneCode: string, clientName: string, clientAge: number }
-   * - Call quoteService.createQuote(request)
-   * - On success: show message, navigate to /quotes/{quoteId}
-   * - On error: show error message
-   * - Always reset loading state
+   * Handle form submission.
+   * Validates, builds the QuoteRequest, calls the service, and navigates on success.
    */
   onSubmit(): void {
     this.submitted = true;
-    // TODO: Implement form submission
-    console.log('Form submitted (TODO: implement)');
+
+    // Stop here if form is invalid — template shows field-level errors
+    if (this.form.invalid) {
+      return;
+    }
+
+    this.loading = true;
+    this.errorMessage = null;
+    this.successMessage = null;
+
+    const request: QuoteRequest = {
+      productId: Number(this.form.value.productId),
+      zoneCode: this.form.value.zoneCode,
+      clientName: this.form.value.clientName.trim(),
+      clientAge: Number(this.form.value.clientAge)
+    };
+
+    this.quoteService.createQuote(request).subscribe({
+      next: (response) => {
+        this.loading = false;
+        this.successMessage = `Quote created! Final price: ${response.finalPrice} TND`;
+        // Navigate to the detail page after a short visual confirmation delay
+        setTimeout(() => this.router.navigate(['/quotes', response.quoteId]), 1500);
+      },
+      error: (err) => {
+        this.loading = false;
+        this.errorMessage = err.message;
+      }
+    });
   }
 
-  /**
-   * Check if a form field has an error (provided helper)
-   */
+  /** Check if a form field has a specific error (used in template). */
   hasError(fieldName: string, errorType: string): boolean {
     const field = this.form.get(fieldName);
     return !!(field && field.hasError(errorType) && (field.dirty || field.touched || this.submitted));
   }
 
-  /**
-   * Check if a form field is invalid (provided helper)
-   */
+  /** Check if a form field is invalid overall (used for CSS class binding). */
   isFieldInvalid(fieldName: string): boolean {
     const field = this.form.get(fieldName);
     return !!(field && field.invalid && (field.dirty || field.touched || this.submitted));
   }
 
-  /**
-   * Get error message for a field (provided helper)
-   */
+  /** Get a human-readable error message for a field (used in template). */
   getErrorMessage(fieldName: string): string {
     const field = this.form.get(fieldName);
     if (!field || !field.errors) return '';
-
-    if (field.hasError('required')) return `This field is required`;
+    if (field.hasError('required')) return 'This field is required';
     if (field.hasError('minlength')) return `Minimum ${field.errors['minlength'].requiredLength} characters`;
     if (field.hasError('min')) return `Minimum value is ${field.errors['min'].min}`;
     if (field.hasError('max')) return `Maximum value is ${field.errors['max'].max}`;
-
     return 'Invalid input';
   }
 }
