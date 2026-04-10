@@ -24,6 +24,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 /**
  * Service for handling pricing and quote calculations.
  * Manages the business logic for pricing rules and quote generation.
+ *
+ * Pricing formula: Final Price = Base Rate × Age Factor × Zone Risk Coefficient
  */
 @Service
 @RequiredArgsConstructor
@@ -39,25 +41,80 @@ public class PricingService {
     /**
      * Calculate a quote based on the provided request.
      *
-     * TODO: Implement the calculateQuote method with the following logic:
-     * 1. Validate and load the Product from productRepository (throw IllegalArgumentException if not found)
-     * 2. Validate and load the Zone from zoneRepository by code (throw IllegalArgumentException if not found)
-     * 3. Load the PricingRule for the product from pricingRuleRepository
-     * 4. Determine the age category using AgeCategory.fromAge(clientAge)
-     * 5. Get the appropriate age factor using getAgeFactor() helper below
-     * 6. Calculate: finalPrice = baseRate × ageFactor × zoneRiskCoefficient (rounded to 2 decimals)
-     * 7. Build an appliedRules list describing each step of the calculation
-     * 8. Create and save a Quote entity with all calculated values
-     * 9. Return a QuoteResponse using the mapToResponse() helper below
+     * Steps:
+     * 1. Load Product from DB — throw IllegalArgumentException if not found
+     * 2. Load Zone from DB by code — throw IllegalArgumentException if not found
+     * 3. Load PricingRule for the product — throw IllegalArgumentException if not found
+     * 4. Determine AgeCategory from clientAge using AgeCategory.fromAge()
+     * 5. Retrieve ageFactor for that category via getAgeFactor()
+     * 6. Calculate finalPrice = baseRate × ageFactor × zoneCoefficient (2dp, HALF_UP)
+     * 7. Build appliedRules list for full pricing traceability
+     * 8. Persist the Quote entity
+     * 9. Return QuoteResponse DTO
      *
-     * @param request the quote request containing productId, zoneCode, clientName, clientAge
-     * @return the calculated quote response
-     * @throws IllegalArgumentException if product, zone, or pricing rule not found
+     * @param request quote request with productId, zoneCode, clientName, clientAge
+     * @return the fully calculated and persisted quote response
+     * @throws IllegalArgumentException if product, zone, or pricing rule is not found
      */
     @Transactional
     public QuoteResponse calculateQuote(QuoteRequest request) {
-        // TODO: Implement this method
-        throw new UnsupportedOperationException("TODO: Implement calculateQuote");
+        log.info("Calculating quote for client: {}, productId: {}, zoneCode: {}",
+                request.getClientName(), request.getProductId(), request.getZoneCode());
+
+        // Step 1 — Load Product
+        Product product = productRepository.findById(request.getProductId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Product not found with ID: " + request.getProductId()));
+
+        // Step 2 — Load Zone by code (e.g. "TUN", "SFX", "SOU")
+        Zone zone = zoneRepository.findByCode(request.getZoneCode())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Zone not found with code: " + request.getZoneCode()));
+
+        // Step 3 — Load PricingRule for this product
+        PricingRule pricingRule = pricingRuleRepository.findByProductId(product.getId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No pricing rule found for product: " + product.getName()));
+
+        // Step 4 — Determine age category (YOUNG / ADULT / SENIOR / ELDERLY)
+        AgeCategory ageCategory = AgeCategory.fromAge(request.getClientAge());
+
+        // Step 5 — Get the corresponding age factor from the pricing rule
+        BigDecimal ageFactor = getAgeFactor(pricingRule, ageCategory);
+
+        // Step 6 — Apply pricing formula: baseRate × ageFactor × zoneRiskCoefficient
+        BigDecimal basePrice = pricingRule.getBaseRate();
+        BigDecimal finalPrice = basePrice
+                .multiply(ageFactor)
+                .multiply(zone.getRiskCoefficient())
+                .setScale(2, RoundingMode.HALF_UP);
+
+        // Step 7 — Build human-readable traceability log
+        List<String> appliedRules = new ArrayList<>();
+        appliedRules.add(String.format("Base rate: %s TND (%s)", basePrice, product.getName()));
+        appliedRules.add(String.format("Age category: %s (age %d) → factor %s",
+                ageCategory.name(), request.getClientAge(), ageFactor));
+        appliedRules.add(String.format("Zone: %s (%s) → coefficient %s",
+                zone.getName(), zone.getCode(), zone.getRiskCoefficient()));
+        appliedRules.add(String.format("Final price: %s × %s × %s = %s TND",
+                basePrice, ageFactor, zone.getRiskCoefficient(), finalPrice));
+
+        // Step 8 — Persist Quote entity
+        Quote quote = Quote.builder()
+                .product(product)
+                .zone(zone)
+                .clientName(request.getClientName())
+                .clientAge(request.getClientAge())
+                .basePrice(basePrice)
+                .finalPrice(finalPrice)
+                .appliedRules(convertRulesToJson(appliedRules))
+                .build();
+        quote = quoteRepository.save(quote);
+
+        log.info("Quote saved with ID: {}, finalPrice: {} TND", quote.getId(), finalPrice);
+
+        // Step 9 — Return DTO using the provided helper
+        return mapToResponse(quote, appliedRules);
     }
 
     /**
