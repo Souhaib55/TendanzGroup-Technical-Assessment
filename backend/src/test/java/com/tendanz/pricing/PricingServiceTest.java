@@ -2,16 +2,11 @@ package com.tendanz.pricing;
 
 import com.tendanz.pricing.dto.QuoteRequest;
 import com.tendanz.pricing.dto.QuoteResponse;
-import com.tendanz.pricing.entity.PricingRule;
 import com.tendanz.pricing.entity.Product;
-import com.tendanz.pricing.entity.Quote;
 import com.tendanz.pricing.entity.Zone;
-import com.tendanz.pricing.repository.PricingRuleRepository;
 import com.tendanz.pricing.repository.ProductRepository;
-import com.tendanz.pricing.repository.QuoteRepository;
 import com.tendanz.pricing.repository.ZoneRepository;
 import com.tendanz.pricing.service.PricingService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,23 +14,24 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for PricingService using a real H2 in-memory database.
+ * Integration tests for PricingService using the H2 in-memory database
+ * pre-populated by data.sql (TUN zone, 3 products, 3 pricing rules).
  *
- * @DataJpaTest spins up a minimal Spring context with JPA repositories only.
- * @Import brings in PricingService and ObjectMapper which are not JPA beans.
+ * IMPORTANT: Do NOT insert test data here — data.sql already seeds the DB.
+ * Just look up what's already there via repositories.
  *
- * Test data (set up in @BeforeEach):
- * - Product: "Test Auto Insurance"
- * - Zone: "TUN" (Grand Tunis) — riskCoefficient = 1.20
- * - PricingRule: baseRate = 500.00, ageFactor YOUNG=1.30, ADULT=1.00, SENIOR=1.20, ELDERLY=1.50
+ * Seeded data used:
+ * - Zone "TUN" (Grand Tunis), riskCoefficient = 1.20
+ * - Product 1 "Assurance Auto", baseRate = 500.00, ADULT factor = 1.00
+ * - Product 2 "Assurance Habitation", baseRate = 300.00
+ * - Product 3 "Assurance Santé", baseRate = 800.00
  */
 @DataJpaTest
-@Import({PricingService.class, ObjectMapper.class})
+@Import(PricingService.class)
 class PricingServiceTest {
 
     @Autowired
@@ -47,53 +43,29 @@ class PricingServiceTest {
     @Autowired
     private ZoneRepository zoneRepository;
 
-    @Autowired
-    private PricingRuleRepository pricingRuleRepository;
-
-    @Autowired
-    private QuoteRepository quoteRepository;
-
-    private Product product;
-    private Zone zone;
-    private PricingRule pricingRule;
+    private Product autoProduct;
+    private Zone tunZone;
 
     @BeforeEach
     void setUp() {
-        // Test data: Auto Insurance, zone coefficient 1.20, standard age factors
-        product = Product.builder()
-                .name("Test Auto Insurance")
-                .description("Test Description")
-                .createdAt(LocalDateTime.now())
-                .build();
-        productRepository.save(product);
+        // Use seeded data — do NOT re-insert (unique constraint on zone.code)
+        autoProduct = productRepository.findAll().stream()
+                .filter(p -> p.getName().contains("Auto"))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Auto product not seeded"));
 
-        zone = Zone.builder()
-                .code("TUN")
-                .name("Grand Tunis")
-                .riskCoefficient(BigDecimal.valueOf(1.20))
-                .build();
-        zoneRepository.save(zone);
-
-        pricingRule = PricingRule.builder()
-                .product(product)
-                .baseRate(BigDecimal.valueOf(500.00))
-                .ageFactorYoung(BigDecimal.valueOf(1.30))
-                .ageFactorAdult(BigDecimal.valueOf(1.00))
-                .ageFactorSenior(BigDecimal.valueOf(1.20))
-                .ageFactorElderly(BigDecimal.valueOf(1.50))
-                .createdAt(LocalDateTime.now())
-                .build();
-        pricingRuleRepository.save(pricingRule);
+        tunZone = zoneRepository.findByCode("TUN")
+                .orElseThrow(() -> new IllegalStateException("TUN zone not seeded"));
     }
 
     /**
-     * Test 1: Adult client (age 25–45).
+     * Test 1: Adult client (age 30).
      * 500.00 × 1.00 (adult) × 1.20 (TUN) = 600.00 TND
      */
     @Test
     void testCalculateQuoteForAdult() {
         QuoteRequest request = QuoteRequest.builder()
-                .productId(product.getId())
+                .productId(autoProduct.getId())
                 .zoneCode("TUN")
                 .clientName("Ahmed Ben Ali")
                 .clientAge(30)
@@ -108,17 +80,17 @@ class PricingServiceTest {
         assertEquals("Ahmed Ben Ali", response.getClientName());
         assertEquals(30, response.getClientAge());
         assertFalse(response.getAppliedRules().isEmpty());
-        assertEquals(4, response.getAppliedRules().size()); // 4 rule lines
+        assertEquals(4, response.getAppliedRules().size());
     }
 
     /**
-     * Test 2: Young client (age 18–24).
+     * Test 2: Young client (age 22).
      * 500.00 × 1.30 (young) × 1.20 (TUN) = 780.00 TND
      */
     @Test
     void testCalculateQuoteForYoungClient() {
         QuoteRequest request = QuoteRequest.builder()
-                .productId(product.getId())
+                .productId(autoProduct.getId())
                 .zoneCode("TUN")
                 .clientName("Youssef Trabelsi")
                 .clientAge(22)
@@ -128,17 +100,16 @@ class PricingServiceTest {
 
         assertNotNull(response);
         assertEquals(new BigDecimal("780.00"), response.getFinalPrice());
-        assertEquals("Youssef Trabelsi", response.getClientName());
     }
 
     /**
-     * Test 3: Senior client (age 46–65).
+     * Test 3: Senior client (age 55).
      * 500.00 × 1.20 (senior) × 1.20 (TUN) = 720.00 TND
      */
     @Test
     void testCalculateQuoteForSeniorClient() {
         QuoteRequest request = QuoteRequest.builder()
-                .productId(product.getId())
+                .productId(autoProduct.getId())
                 .zoneCode("TUN")
                 .clientName("Fatma Gharbi")
                 .clientAge(55)
@@ -151,13 +122,13 @@ class PricingServiceTest {
     }
 
     /**
-     * Test 4: Elderly client (age 66–99).
+     * Test 4: Elderly client (age 70).
      * 500.00 × 1.50 (elderly) × 1.20 (TUN) = 900.00 TND
      */
     @Test
     void testCalculateQuoteForElderlyClient() {
         QuoteRequest request = QuoteRequest.builder()
-                .productId(product.getId())
+                .productId(autoProduct.getId())
                 .zoneCode("TUN")
                 .clientName("Haj Moncef")
                 .clientAge(70)
@@ -170,7 +141,7 @@ class PricingServiceTest {
     }
 
     /**
-     * Test 5: Invalid product ID must throw IllegalArgumentException.
+     * Test 5: Invalid product ID → IllegalArgumentException.
      */
     @Test
     void testCalculateQuoteWithInvalidProductId() {
@@ -181,62 +152,51 @@ class PricingServiceTest {
                 .clientAge(30)
                 .build();
 
-        IllegalArgumentException exception = assertThrows(
+        IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
                 () -> pricingService.calculateQuote(request)
         );
-
-        assertTrue(exception.getMessage().contains("9999"));
+        assertTrue(ex.getMessage().contains("9999"));
     }
 
     /**
-     * Test 6: Invalid zone code must throw IllegalArgumentException.
+     * Test 6: Invalid zone code → IllegalArgumentException.
      */
     @Test
     void testCalculateQuoteWithInvalidZoneCode() {
         QuoteRequest request = QuoteRequest.builder()
-                .productId(product.getId())
+                .productId(autoProduct.getId())
                 .zoneCode("XYZ")
                 .clientName("Test Client")
                 .clientAge(30)
                 .build();
 
-        IllegalArgumentException exception = assertThrows(
+        IllegalArgumentException ex = assertThrows(
                 IllegalArgumentException.class,
                 () -> pricingService.calculateQuote(request)
         );
-
-        assertTrue(exception.getMessage().contains("XYZ"));
+        assertTrue(ex.getMessage().contains("XYZ"));
     }
 
     /**
-     * Test 7: Age boundary — age 24 = YOUNG, age 25 = ADULT.
-     * Verifies the category boundary is inclusive on both sides.
+     * Test 7: Age boundary — age 24 = YOUNG (×1.30), age 25 = ADULT (×1.00).
      * Age 24: 500 × 1.30 × 1.20 = 780.00
      * Age 25: 500 × 1.00 × 1.20 = 600.00
      */
     @Test
     void testAgeBoundaryYoungToAdult() {
-        // Age 24 → still YOUNG
         QuoteRequest youngRequest = QuoteRequest.builder()
-                .productId(product.getId())
-                .zoneCode("TUN")
-                .clientName("Client Young Boundary")
-                .clientAge(24)
-                .build();
-        QuoteResponse youngResponse = pricingService.calculateQuote(youngRequest);
-        assertEquals(new BigDecimal("780.00"), youngResponse.getFinalPrice(),
-                "Age 24 should be YOUNG with factor 1.30");
+                .productId(autoProduct.getId()).zoneCode("TUN")
+                .clientName("Young Boundary").clientAge(24).build();
+        assertEquals(new BigDecimal("780.00"),
+                pricingService.calculateQuote(youngRequest).getFinalPrice(),
+                "Age 24 should be YOUNG (factor 1.30)");
 
-        // Age 25 → now ADULT
         QuoteRequest adultRequest = QuoteRequest.builder()
-                .productId(product.getId())
-                .zoneCode("TUN")
-                .clientName("Client Adult Boundary")
-                .clientAge(25)
-                .build();
-        QuoteResponse adultResponse = pricingService.calculateQuote(adultRequest);
-        assertEquals(new BigDecimal("600.00"), adultResponse.getFinalPrice(),
-                "Age 25 should be ADULT with factor 1.00");
+                .productId(autoProduct.getId()).zoneCode("TUN")
+                .clientName("Adult Boundary").clientAge(25).build();
+        assertEquals(new BigDecimal("600.00"),
+                pricingService.calculateQuote(adultRequest).getFinalPrice(),
+                "Age 25 should be ADULT (factor 1.00)");
     }
 }
