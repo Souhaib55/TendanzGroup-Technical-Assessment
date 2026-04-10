@@ -48,3 +48,6 @@ Thumbs.db
 *.mov
 *.wmv
 
+# Local planning docs (not part of submission)
+ENGINEERING_ROADMAP.md
+

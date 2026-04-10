@@ -7,7 +7,6 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -16,72 +15,84 @@ import java.util.Map;
 /**
  * Global exception handler for the application.
  * Centralizes exception handling and provides consistent error responses.
- *
- * TODO: Implement the 3 exception handlers below.
- * Each handler should return a Map with at least: timestamp, status, error, message
- *
- * Tip: Use a consistent response format like:
- * {
- *   "timestamp": "2026-04-08T...",
- *   "status": 400,
- *   "error": "Bad Request",
- *   "message": "..." or "errors": { field: message }
- * }
+ * All responses follow the format:
+ * { "timestamp": "...", "status": 4xx/5xx, "error": "...", "message": "..." }
  */
 @ControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
     /**
-     * TODO: Handle validation errors from @Valid request body validation.
+     * Handle validation errors from @Valid request body validation.
+     * Returns HTTP 400 BAD_REQUEST with a field-level error map.
+     * Triggered when QuoteRequest fails bean validation (e.g. age < 18, missing clientName).
      *
-     * Requirements:
-     * - Extract field-level errors from MethodArgumentNotValidException
-     * - Return HTTP 400 BAD_REQUEST
-     * - Include a map of field name -> error message in the response
-     *
-     * @param ex the validation exception
-     * @return error response with field errors
+     * @param ex the validation exception thrown by Spring MVC
+     * @return 400 response with map of { fieldName: errorMessage }
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationExceptions(
             MethodArgumentNotValidException ex) {
-        // TODO: Implement validation error handling
-        throw new UnsupportedOperationException("TODO: Implement handleValidationExceptions");
+
+        // Collect all field-level validation failures into a readable map
+        Map<String, String> fieldErrors = new HashMap<>();
+        ex.getBindingResult().getAllErrors().forEach(error -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            fieldErrors.put(fieldName, errorMessage);
+        });
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", LocalDateTime.now().toString());
+        response.put("status", HttpStatus.BAD_REQUEST.value());
+        response.put("error", "Validation Failed");
+        response.put("errors", fieldErrors);
+
+        return ResponseEntity.badRequest().body(response);
     }
 
     /**
-     * TODO: Handle IllegalArgumentException (e.g., product/zone not found).
-     *
-     * Requirements:
-     * - Log the error
-     * - Return HTTP 404 NOT_FOUND
-     * - Include the exception message in the response
+     * Handle IllegalArgumentException (e.g., product/zone not found).
+     * Returns HTTP 404 NOT_FOUND.
+     * Thrown by PricingService when productId, zoneCode, or pricingRule is invalid.
      *
      * @param ex the illegal argument exception
-     * @return error response
+     * @return 404 response with the exception message
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(
             IllegalArgumentException ex) {
-        // TODO: Implement not-found error handling
-        throw new UnsupportedOperationException("TODO: Implement handleIllegalArgumentException");
+
+        log.error("Resource not found: {}", ex.getMessage());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", LocalDateTime.now().toString());
+        response.put("status", HttpStatus.NOT_FOUND.value());
+        response.put("error", "Not Found");
+        response.put("message", ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     /**
-     * TODO: Handle all other unexpected exceptions as a fallback.
+     * Handle all other unexpected exceptions as a fallback.
+     * Returns HTTP 500 INTERNAL_SERVER_ERROR.
+     * Logs full stack trace internally but never exposes it to the caller.
      *
-     * Requirements:
-     * - Log the full exception
-     * - Return HTTP 500 INTERNAL_SERVER_ERROR
-     * - Return a generic error message (do NOT expose internal details)
-     *
-     * @param ex the exception
-     * @return error response
+     * @param ex the uncaught exception
+     * @return 500 response with a generic message
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneralException(Exception ex) {
-        // TODO: Implement generic error handling
-        throw new UnsupportedOperationException("TODO: Implement handleGeneralException");
+
+        log.error("Unexpected error occurred", ex);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", LocalDateTime.now().toString());
+        response.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        response.put("error", "Internal Server Error");
+        response.put("message", "An unexpected error occurred. Please try again later.");
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 }
