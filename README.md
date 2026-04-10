@@ -1,101 +1,120 @@
-# Test Technique — Full Stack Engineer — Tendanz Group
+# Insurance Pricing Engine — Tendanz Group Technical Test
 
-## Moteur de Tarification Assurance
+## Overview
 
-### Contexte
+A full-stack insurance pricing engine that calculates the cost of an insurance policy based on the client's age, geographic zone, and selected product.
 
-Vous rejoignez une équipe projet chez Tendanz Group pour développer un **moteur de tarification d'assurance**. Le système doit permettre de calculer le prix d'une couverture en fonction du profil client, du produit choisi et de la zone géographique.
-
-### Structure du projet
-
+**Pricing formula:**
 ```
-├── backend/          # Spring Boot 3.2 — Java 17
-│   ├── pom.xml
-│   └── src/
-│       ├── main/java/com/tendanz/pricing/
-│       │   ├── controller/
-│       │   │   ├── ProductController.java  # Fourni (GET /api/products)
-│       │   │   └── QuoteController.java    # → À implémenter (TODO)
-│       │   ├── service/
-│       │   │   └── PricingService.java     # → À implémenter (TODO)
-│       │   ├── repository/
-│       │   │   └── QuoteRepository.java    # → À compléter (TODO)
-│       │   ├── entity/        # Entités JPA (fournies)
-│       │   ├── dto/           # DTOs (fournis)
-│       │   ├── exception/
-│       │   │   └── GlobalExceptionHandler  # → À implémenter (TODO)
-│       │   └── enums/         # AgeCategory (fourni)
-│       └── main/resources/
-│           ├── schema.sql     # DDL (fourni)
-│           ├── data.sql       # Données initiales (fourni)
-│           └── application.yml
-│
-└── frontend/         # Angular 17 — Standalone Components
-    ├── package.json
-    └── src/app/
-        ├── services/      # → À implémenter (TODO)
-        ├── pages/         # → À implémenter (TODO)
-        └── models/        # Interfaces TypeScript (fournies)
+Final Price = Base Rate × Age Factor × Zone Risk Coefficient
 ```
 
-### Démarrage rapide
+**Example:** Client aged 30, Tunis zone, Auto insurance → `500.00 × 1.00 × 1.20 = 600.00 TND`
 
-**Backend :**
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Spring Boot 3.2 · Java 17 · Spring Data JPA · H2 (in-memory) |
+| Frontend | Angular 17 · Standalone Components · Reactive Forms |
+| Tests | JUnit 5 · @DataJpaTest |
+| DevOps | Docker · Docker Compose · GitHub Actions |
+
+## Quick Start
+
+**Backend:**
 ```bash
 cd backend
 mvn spring-boot:run
-# API disponible sur http://localhost:8080
-# Console H2 : http://localhost:8080/h2-console (JDBC URL: jdbc:h2:mem:testdb)
+# API: http://localhost:8080
+# H2 Console: http://localhost:8080/h2-console (JDBC URL: jdbc:h2:mem:testdb)
 ```
 
-**Frontend :**
+**Frontend:**
 ```bash
 cd frontend
 npm install
 ng serve
-# App disponible sur http://localhost:4200
+# App: http://localhost:4200
 ```
 
-### Formule de tarification
+**Full Stack with Docker:**
+```bash
+docker compose up --build
+# App: http://localhost
+```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/products` | List all insurance products |
+| POST | `/api/quotes` | Create a new quote (returns 201) |
+| GET | `/api/quotes/{id}` | Get quote by ID |
+| GET | `/api/quotes?productId=X&minPrice=Y` | List quotes with optional filters |
+
+**POST /api/quotes — request body:**
+```json
+{
+  "productId": 1,
+  "zoneCode": "TUN",
+  "clientName": "Ahmed Ben Ali",
+  "clientAge": 30
+}
+```
+
+**Response includes:** `finalPrice`, `basePrice`, `appliedRules` (full pricing trace)
+
+## Technical Decisions
+
+### Backend Architecture
+- **Thin controller, rich service:** `QuoteController` delegates all business logic to `PricingService`. No pricing logic leaks into the HTTP layer.
+- **Centralized error handling:** `GlobalExceptionHandler` (@ControllerAdvice) returns consistent JSON errors for validation (400), not-found (404), and unexpected (500) cases.
+- **Traceability:** Every quote stores an `appliedRules` JSON array with a human-readable step-by-step pricing breakdown.
+- **Precision:** All monetary calculations use `BigDecimal` with `RoundingMode.HALF_UP` to avoid floating-point errors.
+
+### Frontend Architecture
+- **Angular 17 Standalone Components** — no NgModule boilerplate.
+- **Reactive Forms** for the quote form — full client-side validation matching backend bean validation constraints.
+- **Server-side filtering** via `HttpParams` for productId and minPrice filters.
+- **In-memory sorting** for date/price columns to avoid extra API calls.
+
+### Testing
+- 7 unit tests using `@DataJpaTest` with a real H2 database (no mocking of repositories).
+- Covers: all 4 age categories, age boundary conditions (24→25), invalid product ID, invalid zone code.
+
+## Project Structure
 
 ```
-Prix Final = Taux de Base × Facteur Âge × Coefficient Zone
+├── backend/
+│   ├── Dockerfile
+│   └── src/
+│       ├── main/java/com/tendanz/pricing/
+│       │   ├── controller/   ProductController, QuoteController
+│       │   ├── service/      PricingService
+│       │   ├── repository/   QuoteRepository (custom queries)
+│       │   ├── entity/       Product, Zone, PricingRule, Quote
+│       │   ├── dto/          QuoteRequest, QuoteResponse
+│       │   ├── enums/        AgeCategory
+│       │   └── exception/    GlobalExceptionHandler
+│       └── main/resources/   schema.sql, data.sql, application.yml
+│
+├── frontend/
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   └── src/app/
+│       ├── services/   ProductService, QuoteService
+│       ├── pages/      QuoteFormComponent, QuoteListComponent, QuoteDetailComponent
+│       └── models/     product.model.ts, quote.model.ts
+│
+├── docker-compose.yml
+└── .github/workflows/ci.yml
 ```
 
-| Tranche d'âge | Catégorie | Facteur |
-|---------------|-----------|---------|
-| 18 - 24 ans   | YOUNG     | 1.30    |
-| 25 - 45 ans   | ADULT     | 1.00    |
-| 46 - 65 ans   | SENIOR    | 1.20    |
-| 66 - 99 ans   | ELDERLY   | 1.50    |
+## CI/CD Pipeline
 
-| Zone        | Code | Coefficient |
-|-------------|------|-------------|
-| Grand Tunis | TUN  | 1.20        |
-| Sfax        | SFX  | 1.00        |
-| Sousse      | SOU  | 1.10        |
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push to `main` or `develop`:
 
-| Produit              | Code    | Taux de Base (TND) |
-|----------------------|---------|---------------------|
-| Assurance Auto       | AUTO    | 500.00              |
-| Assurance Habitation | HABITAT | 300.00              |
-| Assurance Santé      | SANTE   | 800.00              |
-
-**Exemple :** Client de 30 ans, zone Tunis, Assurance Auto = 500 × 1.00 × 1.20 = **600.00 TND**
-
-### Livrable attendu
-
-- Code complété (tous les fichiers `TODO`)
-- Minimum 5 tests unitaires backend
-- README mis à jour avec vos choix techniques
-- Commits Git progressifs et clairs
-
-<<<<<<< HEAD
-Bonne chance !
-=======
-### Deadline
-
-**Samedi 11 avril 2026 à 23h59**
-
-Envoyez le lien de votre repository à : **recrutement.tn@tendanz.com**
->>>>>>> df8eb3a (Fix skeleton: corrected data.sql, real TODOs, frontend models, added ProductController)
+1. **backend-ci** — `mvn verify` (build + unit tests) on Java 17
+2. **frontend-ci** — `npm ci` + `ng build --configuration production`
+3. **docker-build** — builds both images (only on `main`, after jobs 1 & 2 pass)
