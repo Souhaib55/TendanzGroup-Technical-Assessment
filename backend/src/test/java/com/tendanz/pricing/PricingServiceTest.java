@@ -24,17 +24,15 @@ import java.time.LocalDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Test class for PricingService.
+ * Integration tests for PricingService using a real H2 in-memory database.
  *
- * TODO: Implement at least 5 test cases covering:
- * - Quote calculation for different age categories (YOUNG, ADULT, SENIOR, ELDERLY)
- * - Different zone risk coefficients
- * - Edge cases (minimum age 18, maximum age 99, boundary between categories)
- * - Error handling (invalid product ID, invalid zone code)
- * - Quote retrieval by ID
+ * @DataJpaTest spins up a minimal Spring context with JPA repositories only.
+ * @Import brings in PricingService and ObjectMapper which are not JPA beans.
  *
- * The @BeforeEach setUp() method below creates test data you can use.
- * Add your test methods below the existing structure.
+ * Test data (set up in @BeforeEach):
+ * - Product: "Test Auto Insurance"
+ * - Zone: "TUN" (Grand Tunis) — riskCoefficient = 1.20
+ * - PricingRule: baseRate = 500.00, ageFactor YOUNG=1.30, ADULT=1.00, SENIOR=1.20, ELDERLY=1.50
  */
 @DataJpaTest
 @Import({PricingService.class, ObjectMapper.class})
@@ -89,67 +87,156 @@ class PricingServiceTest {
     }
 
     /**
-     * TODO: Test quote calculation for an adult client (age 25-45).
-     *
-     * Expected: 500.00 × 1.00 (adult) × 1.20 (Tunis) = 600.00 TND
+     * Test 1: Adult client (age 25–45).
+     * 500.00 × 1.00 (adult) × 1.20 (TUN) = 600.00 TND
      */
     @Test
     void testCalculateQuoteForAdult() {
-        // TODO: Implement this test
-        // Hint: Use QuoteRequest.builder() to create the request
-        // Then call pricingService.calculateQuote(request)
-        // Assert: finalPrice == 600.00, basePrice == 500.00, etc.
+        QuoteRequest request = QuoteRequest.builder()
+                .productId(product.getId())
+                .zoneCode("TUN")
+                .clientName("Ahmed Ben Ali")
+                .clientAge(30)
+                .build();
+
+        QuoteResponse response = pricingService.calculateQuote(request);
+
+        assertNotNull(response);
+        assertNotNull(response.getQuoteId());
+        assertEquals(new BigDecimal("600.00"), response.getFinalPrice());
+        assertEquals(new BigDecimal("500.00"), response.getBasePrice());
+        assertEquals("Ahmed Ben Ali", response.getClientName());
+        assertEquals(30, response.getClientAge());
+        assertFalse(response.getAppliedRules().isEmpty());
+        assertEquals(4, response.getAppliedRules().size()); // 4 rule lines
     }
 
     /**
-     * TODO: Test quote calculation for a young client (age 18-24).
-     *
-     * Expected: 500.00 × 1.30 (young) × 1.20 (Tunis) = 780.00 TND
+     * Test 2: Young client (age 18–24).
+     * 500.00 × 1.30 (young) × 1.20 (TUN) = 780.00 TND
      */
     @Test
     void testCalculateQuoteForYoungClient() {
-        // TODO: Implement this test
+        QuoteRequest request = QuoteRequest.builder()
+                .productId(product.getId())
+                .zoneCode("TUN")
+                .clientName("Youssef Trabelsi")
+                .clientAge(22)
+                .build();
+
+        QuoteResponse response = pricingService.calculateQuote(request);
+
+        assertNotNull(response);
+        assertEquals(new BigDecimal("780.00"), response.getFinalPrice());
+        assertEquals("Youssef Trabelsi", response.getClientName());
     }
 
     /**
-     * TODO: Test quote calculation for a senior client (age 46-65).
-     *
-     * Expected: 500.00 × 1.20 (senior) × 1.20 (Tunis) = 720.00 TND
+     * Test 3: Senior client (age 46–65).
+     * 500.00 × 1.20 (senior) × 1.20 (TUN) = 720.00 TND
      */
     @Test
     void testCalculateQuoteForSeniorClient() {
-        // TODO: Implement this test
+        QuoteRequest request = QuoteRequest.builder()
+                .productId(product.getId())
+                .zoneCode("TUN")
+                .clientName("Fatma Gharbi")
+                .clientAge(55)
+                .build();
+
+        QuoteResponse response = pricingService.calculateQuote(request);
+
+        assertNotNull(response);
+        assertEquals(new BigDecimal("720.00"), response.getFinalPrice());
     }
 
     /**
-     * TODO: Test that requesting a quote with an invalid product ID
-     * throws IllegalArgumentException.
+     * Test 4: Elderly client (age 66–99).
+     * 500.00 × 1.50 (elderly) × 1.20 (TUN) = 900.00 TND
+     */
+    @Test
+    void testCalculateQuoteForElderlyClient() {
+        QuoteRequest request = QuoteRequest.builder()
+                .productId(product.getId())
+                .zoneCode("TUN")
+                .clientName("Haj Moncef")
+                .clientAge(70)
+                .build();
+
+        QuoteResponse response = pricingService.calculateQuote(request);
+
+        assertNotNull(response);
+        assertEquals(new BigDecimal("900.00"), response.getFinalPrice());
+    }
+
+    /**
+     * Test 5: Invalid product ID must throw IllegalArgumentException.
      */
     @Test
     void testCalculateQuoteWithInvalidProductId() {
-        // TODO: Implement this test
-        // Hint: Use assertThrows(IllegalArgumentException.class, () -> ...)
+        QuoteRequest request = QuoteRequest.builder()
+                .productId(9999L)
+                .zoneCode("TUN")
+                .clientName("Test Client")
+                .clientAge(30)
+                .build();
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> pricingService.calculateQuote(request)
+        );
+
+        assertTrue(exception.getMessage().contains("9999"));
     }
 
     /**
-     * TODO: Test that requesting a quote with an invalid zone code
-     * throws IllegalArgumentException.
+     * Test 6: Invalid zone code must throw IllegalArgumentException.
      */
     @Test
     void testCalculateQuoteWithInvalidZoneCode() {
-        // TODO: Implement this test
+        QuoteRequest request = QuoteRequest.builder()
+                .productId(product.getId())
+                .zoneCode("XYZ")
+                .clientName("Test Client")
+                .clientAge(30)
+                .build();
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> pricingService.calculateQuote(request)
+        );
+
+        assertTrue(exception.getMessage().contains("XYZ"));
     }
 
     /**
-     * TODO: (Bonus) Test quote retrieval by ID.
-     * Create a quote, then retrieve it with pricingService.getQuote(id).
-     * Verify all fields match.
+     * Test 7: Age boundary — age 24 = YOUNG, age 25 = ADULT.
+     * Verifies the category boundary is inclusive on both sides.
+     * Age 24: 500 × 1.30 × 1.20 = 780.00
+     * Age 25: 500 × 1.00 × 1.20 = 600.00
      */
+    @Test
+    void testAgeBoundaryYoungToAdult() {
+        // Age 24 → still YOUNG
+        QuoteRequest youngRequest = QuoteRequest.builder()
+                .productId(product.getId())
+                .zoneCode("TUN")
+                .clientName("Client Young Boundary")
+                .clientAge(24)
+                .build();
+        QuoteResponse youngResponse = pricingService.calculateQuote(youngRequest);
+        assertEquals(new BigDecimal("780.00"), youngResponse.getFinalPrice(),
+                "Age 24 should be YOUNG with factor 1.30");
 
-    /**
-     * TODO: (Bonus) Test edge cases: age boundaries.
-     * - Age 24 should be YOUNG, age 25 should be ADULT
-     * - Age 45 should be ADULT, age 46 should be SENIOR
-     * - Age 65 should be SENIOR, age 66 should be ELDERLY
-     */
+        // Age 25 → now ADULT
+        QuoteRequest adultRequest = QuoteRequest.builder()
+                .productId(product.getId())
+                .zoneCode("TUN")
+                .clientName("Client Adult Boundary")
+                .clientAge(25)
+                .build();
+        QuoteResponse adultResponse = pricingService.calculateQuote(adultRequest);
+        assertEquals(new BigDecimal("600.00"), adultResponse.getFinalPrice(),
+                "Age 25 should be ADULT with factor 1.00");
+    }
 }
