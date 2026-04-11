@@ -1,6 +1,8 @@
 package com.tendanz.pricing;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -17,12 +19,14 @@ public class PricingApplication {
     }
 
     /**
-     * Provide ObjectMapper bean for JSON serialization/deserialization.
-     *
-     * @return configured ObjectMapper
+     * Shared ObjectMapper for service JSON serialization and HTTP responses.
+     * Registers Java time support so LocalDateTime fields serialize correctly.
      */
     @Bean
     public ObjectMapper objectMapper() {
-        return new ObjectMapper();
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return mapper;
     }
 }
