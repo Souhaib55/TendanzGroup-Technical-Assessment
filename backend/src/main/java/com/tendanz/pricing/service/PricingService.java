@@ -5,10 +5,12 @@ import com.tendanz.pricing.dto.QuoteResponse;
 import com.tendanz.pricing.entity.PricingRule;
 import com.tendanz.pricing.entity.Product;
 import com.tendanz.pricing.entity.Quote;
+import com.tendanz.pricing.entity.QuoteHistory;
 import com.tendanz.pricing.entity.Zone;
 import com.tendanz.pricing.enums.AgeCategory;
 import com.tendanz.pricing.repository.PricingRuleRepository;
 import com.tendanz.pricing.repository.ProductRepository;
+import com.tendanz.pricing.repository.QuoteHistoryRepository;
 import com.tendanz.pricing.repository.QuoteRepository;
 import com.tendanz.pricing.repository.ZoneRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -36,6 +39,7 @@ public class PricingService {
     private final ZoneRepository zoneRepository;
     private final PricingRuleRepository pricingRuleRepository;
     private final QuoteRepository quoteRepository;
+    private final QuoteHistoryRepository quoteHistoryRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -110,6 +114,13 @@ public class PricingService {
                 .appliedRules(convertRulesToJson(appliedRules))
                 .build();
         quote = quoteRepository.save(quote);
+
+        quoteHistoryRepository.save(QuoteHistory.builder()
+            .quote(quote)
+            .eventType("CREATED")
+            .details(buildCreationHistoryDetails(quote, appliedRules))
+            .changedBy("SYSTEM")
+            .build());
 
         log.info("Quote saved with ID: {}, finalPrice: {} TND", quote.getId(), finalPrice);
 
@@ -201,6 +212,24 @@ public class PricingService {
         } catch (Exception e) {
             log.error("Error deserializing rules from JSON", e);
             return new ArrayList<>();
+        }
+    }
+
+    private String buildCreationHistoryDetails(Quote quote, List<String> appliedRules) {
+        try {
+            LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
+            payload.put("quoteId", quote.getId());
+            payload.put("clientName", quote.getClientName());
+            payload.put("clientAge", quote.getClientAge());
+            payload.put("product", quote.getProduct().getName());
+            payload.put("zone", quote.getZone().getCode());
+            payload.put("basePrice", quote.getBasePrice());
+            payload.put("finalPrice", quote.getFinalPrice());
+            payload.put("appliedRules", appliedRules);
+            return objectMapper.writeValueAsString(payload);
+        } catch (Exception e) {
+            log.error("Error serializing quote history payload", e);
+            return "{}";
         }
     }
 }

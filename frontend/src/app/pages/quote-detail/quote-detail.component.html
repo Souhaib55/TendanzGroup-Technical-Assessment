@@ -13,8 +13,16 @@
   <!-- Quote Details -->
   <div *ngIf="!loading && quote" class="quote-detail">
     <div class="header">
-      <h2>Quote #{{ quote.quoteId }}</h2>
-      <button class="secondary" routerLink="/quotes">Back to Quotes</button>
+      <div class="header-main">
+        <h2>Quote #{{ quote.quoteId }}</h2>
+        <p>Premium composition, generated rules, and audit timeline.</p>
+      </div>
+      <div class="header-actions">
+        <button class="secondary" (click)="exportPdf()" [disabled]="exportingPdf">
+          {{ exportingPdf ? 'Exporting...' : 'Export PDF' }}
+        </button>
+        <button class="secondary" routerLink="/quotes">Back to Quotes</button>
+      </div>
     </div>
 
     <div class="grid">
@@ -82,6 +90,27 @@
         <span class="label">Created:</span>
         <span class="value">{{ quote.createdAt | date:'medium' }}</span>
       </div>
+    </div>
+
+    <div class="card history-card">
+      <h4>History</h4>
+
+      <p *ngIf="historyLoading" class="text-muted">Loading history...</p>
+
+      <ul *ngIf="!historyLoading && history.length > 0" class="history-list">
+        <li *ngFor="let event of history" class="history-item">
+          <div class="history-top-row">
+            <span class="history-badge">{{ event.eventType }}</span>
+            <span class="history-date">{{ event.changedAt | date:'medium' }}</span>
+          </div>
+          <p class="history-details">{{ formatHistoryDetails(event.details) }}</p>
+          <p *ngIf="event.changedBy" class="history-actor">By: {{ event.changedBy }}</p>
+        </li>
+      </ul>
+
+      <p *ngIf="!historyLoading && history.length === 0" class="text-muted">
+        No history entries found.
+      </p>
     </div>
   </div>
 </div>

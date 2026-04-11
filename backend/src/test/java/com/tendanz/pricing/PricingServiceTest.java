@@ -5,6 +5,7 @@ import com.tendanz.pricing.dto.QuoteResponse;
 import com.tendanz.pricing.entity.Product;
 import com.tendanz.pricing.entity.Zone;
 import com.tendanz.pricing.repository.ProductRepository;
+import com.tendanz.pricing.repository.QuoteHistoryRepository;
 import com.tendanz.pricing.repository.ZoneRepository;
 import com.tendanz.pricing.service.PricingService;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,7 +44,11 @@ class PricingServiceTest {
     @Autowired
     private ZoneRepository zoneRepository;
 
+        @Autowired
+        private QuoteHistoryRepository quoteHistoryRepository;
+
     private Product autoProduct;
+        private Product travelProduct;
     private Zone tunZone;
 
     @BeforeEach
@@ -53,6 +58,11 @@ class PricingServiceTest {
                 .filter(p -> p.getName().contains("Auto"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Auto product not seeded"));
+
+        travelProduct = productRepository.findAll().stream()
+                .filter(p -> p.getName().contains("Voyage"))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Travel product not seeded"));
 
         tunZone = zoneRepository.findByCode("TUN")
                 .orElseThrow(() -> new IllegalStateException("TUN zone not seeded"));
@@ -199,4 +209,44 @@ class PricingServiceTest {
                 pricingService.calculateQuote(adultRequest).getFinalPrice(),
                 "Age 25 should be ADULT (factor 1.00)");
     }
+
+        /**
+         * Test 8: New fourth product (Assurance Voyage) with custom age factors.
+         * 1200.00 × 1.05 (adult) × 1.20 (TUN) = 1512.00 TND
+         */
+        @Test
+        void testCalculateQuoteForTravelProduct() {
+                QuoteRequest request = QuoteRequest.builder()
+                                .productId(travelProduct.getId())
+                                .zoneCode("TUN")
+                                .clientName("Travel Client")
+                                .clientAge(35)
+                                .build();
+
+                QuoteResponse response = pricingService.calculateQuote(request);
+
+                assertNotNull(response);
+                assertEquals(new BigDecimal("1512.00"), response.getFinalPrice());
+                assertEquals(travelProduct.getName(), response.getProductName());
+        }
+
+        /**
+         * Test 9: A CREATED history event is recorded when a quote is created.
+         */
+        @Test
+        void testQuoteCreationHistoryIsRecorded() {
+                QuoteRequest request = QuoteRequest.builder()
+                                .productId(autoProduct.getId())
+                                .zoneCode("TUN")
+                                .clientName("History Client")
+                                .clientAge(30)
+                                .build();
+
+                QuoteResponse response = pricingService.calculateQuote(request);
+
+                var events = quoteHistoryRepository.findByQuoteIdOrderByChangedAtDesc(response.getQuoteId());
+                assertFalse(events.isEmpty());
+                assertEquals("CREATED", events.get(0).getEventType());
+                assertEquals("SYSTEM", events.get(0).getChangedBy());
+        }
 }

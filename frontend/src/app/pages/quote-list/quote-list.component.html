@@ -1,5 +1,11 @@
 <div class="quote-list-container">
-  <h2>Quotes</h2>
+  <div class="page-header">
+    <div>
+      <h2>Quotes</h2>
+      <p>Browse, filter, and explore generated insurance quotes.</p>
+    </div>
+    <a class="new-quote-link" routerLink="/quotes/new">Create Quote</a>
+  </div>
 
   <!-- Error -->
   <div *ngIf="errorMessage" class="alert error">
@@ -29,7 +35,14 @@
       />
     </div>
 
-    <button class="secondary" (click)="resetFilters()">Reset Filters</button>
+    <div class="filter-group page-size-group">
+      <label for="pageSize">Page Size:</label>
+      <select id="pageSize" [ngModel]="pageSize" (ngModelChange)="changePageSize($event)">
+        <option *ngFor="let size of pageSizeOptions" [ngValue]="size">{{ size }}</option>
+      </select>
+    </div>
+
+    <button class="secondary reset-button" (click)="resetFilters()">Reset Filters</button>
   </div>
 
   <!-- Loading -->
@@ -39,7 +52,7 @@
   </div>
 
   <!-- Quotes Table -->
-  <div *ngIf="!loading && filteredQuotes.length > 0" class="table-container">
+  <div *ngIf="!loading && quotes.length > 0" class="table-container">
     <div class="sort-controls">
       <button
         [class.active]="sortField === 'date'"
@@ -67,7 +80,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let quote of filteredQuotes" (click)="viewQuote(quote.quoteId)" class="clickable">
+        <tr *ngFor="let quote of quotes" (click)="viewQuote(quote.quoteId)" class="clickable">
           <td>{{ quote.quoteId }}</td>
           <td>{{ quote.clientName }}</td>
           <td>{{ quote.productName }}</td>
@@ -77,10 +90,23 @@
         </tr>
       </tbody>
     </table>
+
+    <div class="pagination-controls">
+      <span class="pagination-summary">
+        Showing {{ quotes.length > 0 ? (currentPage * pageSize + 1) : 0 }}
+        - {{ currentPage * pageSize + quotes.length }} of {{ totalElements }} quotes
+      </span>
+
+      <div class="pagination-buttons">
+        <button class="secondary" (click)="prevPage()" [disabled]="currentPage === 0">Previous</button>
+        <span class="page-indicator">Page {{ currentPage + 1 }} / {{ totalPages || 1 }}</span>
+        <button class="secondary" (click)="nextPage()" [disabled]="currentPage >= totalPages - 1">Next</button>
+      </div>
+    </div>
   </div>
 
   <!-- Empty State -->
-  <div *ngIf="!loading && filteredQuotes.length === 0" class="empty-state">
+  <div *ngIf="!loading && quotes.length === 0" class="empty-state">
     <p>No quotes found. <a routerLink="/quotes/new">Create one now</a></p>
   </div>
 </div>

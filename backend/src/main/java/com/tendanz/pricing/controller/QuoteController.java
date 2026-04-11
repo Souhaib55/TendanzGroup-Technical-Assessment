@@ -1,14 +1,24 @@
 package com.tendanz.pricing.controller;
 
+import com.tendanz.pricing.dto.QuoteHistoryResponse;
 import com.tendanz.pricing.dto.QuoteRequest;
 import com.tendanz.pricing.dto.QuoteResponse;
 import com.tendanz.pricing.entity.Quote;
+import com.tendanz.pricing.repository.QuoteHistoryRepository;
 import com.tendanz.pricing.repository.QuoteRepository;
+import com.tendanz.pricing.service.PdfExportService;
 import com.tendanz.pricing.service.PricingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,6 +42,8 @@ public class QuoteController {
 
     private final PricingService pricingService;
     private final QuoteRepository quoteRepository;
+    private final QuoteHistoryRepository quoteHistoryRepository;
+    private final PdfExportService pdfExportService;
 
     /**
      * Create a new insurance quote.
@@ -79,36 +91,109 @@ public class QuoteController {
      *
      * @param productId optional product ID filter
      * @param minPrice  optional minimum price filter
-     * @return 200 with list of matching QuoteResponse objects
+         * @param page      page index (0-based)
+         * @param size      page size
+         * @param sort      sort expression: field,direction (e.g. createdAt,desc)
+         * @return 200 with paged matching QuoteResponse objects
      */
     @GetMapping
-    public ResponseEntity<List<QuoteResponse>> getAllQuotes(
+        public ResponseEntity<Page<QuoteResponse>> getAllQuotes(
             @RequestParam(required = false) Long productId,
-            @RequestParam(required = false) Double minPrice) {
+            @RequestParam(required = false) Double minPrice,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort) {
 
-        log.info("GET /api/quotes — productId: {}, minPrice: {}", productId, minPrice);
+        log.info("GET /api/quotes — productId: {}, minPrice: {}, page: {}, size: {}, sort: {}",
+            productId, minPrice, page, size, sort);
 
-        List<Quote> quotes;
+        Pageable pageable = buildPageable(page, size, sort);
 
-        if (productId != null && minPrice != null) {
-            // Both filters: query by product then apply price threshold in-stream
-            quotes = quoteRepository.findByProductId(productId).stream()
-                    .filter(q -> q.getFinalPrice().doubleValue() >= minPrice)
-                    .toList();
+        Page<Quote> quotes;
+        BigDecimal minPriceValue = minPrice != null ? BigDecimal.valueOf(minPrice) : null;
+
+        if (productId != null && minPriceValue != null) {
+            quotes = quoteRepository.findByProductIdAndFinalPriceGreaterThanEqual(
+                productId,
+                minPriceValue,
+                pageable
+            );
         } else if (productId != null) {
-            quotes = quoteRepository.findByProductId(productId);
-        } else if (minPrice != null) {
-            quotes = quoteRepository.findByFinalPriceGreaterThanOrEqual(
-                    BigDecimal.valueOf(minPrice));
+            quotes = quoteRepository.findByProductId(productId, pageable);
+        } else if (minPriceValue != null) {
+            quotes = quoteRepository.findByFinalPriceGreaterThanOrEqual(minPriceValue, pageable);
         } else {
-            quotes = quoteRepository.findAll();
+            quotes = quoteRepository.findAll(pageable);
         }
 
         // Convert each Quote entity to a QuoteResponse DTO via PricingService
-        List<QuoteResponse> responses = quotes.stream()
-                .map(q -> pricingService.getQuote(q.getId()))
-                .toList();
+        Page<QuoteResponse> responses = quotes.map(q -> pricingService.getQuote(q.getId()));
+
+        return ResponseEntity.ok(responses);
+        }
+
+        /**
+         * Export a single quote as a downloadable PDF document.
+         *
+         * @param id quote ID
+         * @return PDF bytes with attachment headers
+         */
+        @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+        public ResponseEntity<byte[]> exportQuotePdf(@PathVariable Long id) {
+        log.info("GET /api/quotes/{}/pdf — exporting PDF", id);
+
+        byte[] pdfBytes = pdfExportService.generateQuotePdf(id);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDisposition(
+            ContentDisposition.attachment().filename("quote-" + id + ".pdf").build()
+        );
+
+        return ResponseEntity.ok()
+            .headers(headers)
+            .body(pdfBytes);
+        }
+
+        /**
+         * Get audit history entries for a quote.
+         *
+         * @param id quote ID
+         * @return history entries ordered by latest change first
+         */
+        @GetMapping("/{id}/history")
+        public ResponseEntity<List<QuoteHistoryResponse>> getQuoteHistory(@PathVariable Long id) {
+        log.info("GET /api/quotes/{}/history — fetching history", id);
+
+        // Validate quote existence using existing service behavior.
+        pricingService.getQuote(id);
+
+        List<QuoteHistoryResponse> responses = quoteHistoryRepository
+            .findByQuoteIdOrderByChangedAtDesc(id)
+            .stream()
+            .map(history -> QuoteHistoryResponse.builder()
+                .id(history.getId())
+                .eventType(history.getEventType())
+                .details(history.getDetails())
+                .changedBy(history.getChangedBy())
+                .changedAt(history.getChangedAt())
+                .build())
+            .toList();
 
         return ResponseEntity.ok(responses);
     }
+
+        private Pageable buildPageable(int page, int size, String sort) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+
+        String[] sortParts = sort.split(",");
+        String field = sortParts.length > 0 && !sortParts[0].isBlank()
+            ? sortParts[0]
+            : "createdAt";
+        Sort.Direction direction = (sortParts.length > 1 && "asc".equalsIgnoreCase(sortParts[1]))
+            ? Sort.Direction.ASC
+            : Sort.Direction.DESC;
+
+        return PageRequest.of(safePage, safeSize, Sort.by(direction, field));
+        }
 }

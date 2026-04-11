@@ -3,7 +3,12 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
-import { QuoteRequest, QuoteResponse } from '../models/quote.model';
+import {
+  PaginatedResponse,
+  QuoteHistoryEvent,
+  QuoteRequest,
+  QuoteResponse
+} from '../models/quote.model';
 
 /**
  * Service for managing quotes.
@@ -51,12 +56,18 @@ export class QuoteService {
 
   /**
    * Get all quotes with optional server-side filtering.
-   * GET /api/quotes?productId=X&minPrice=Y
+   * GET /api/quotes?productId=X&minPrice=Y&page=0&size=10&sort=createdAt,desc
    *
-   * @param filters Optional filter object — productId and/or minPrice
-   * @returns Observable of array of matching QuoteResponse objects
+   * @param filters Optional query object for filters + pagination + sorting
+   * @returns Observable of paginated QuoteResponse list
    */
-  getQuotes(filters?: { productId?: number; minPrice?: number }): Observable<QuoteResponse[]> {
+  getQuotes(filters?: {
+    productId?: number;
+    minPrice?: number;
+    page?: number;
+    size?: number;
+    sort?: string;
+  }): Observable<PaginatedResponse<QuoteResponse>> {
     let params = new HttpParams();
     if (filters?.productId) {
       params = params.set('productId', filters.productId.toString());
@@ -64,9 +75,50 @@ export class QuoteService {
     if (filters?.minPrice) {
       params = params.set('minPrice', filters.minPrice.toString());
     }
-    return this.http.get<QuoteResponse[]>(
+    if (filters?.page !== undefined) {
+      params = params.set('page', filters.page.toString());
+    }
+    if (filters?.size !== undefined) {
+      params = params.set('size', filters.size.toString());
+    }
+    if (filters?.sort) {
+      params = params.set('sort', filters.sort);
+    }
+
+    return this.http.get<PaginatedResponse<QuoteResponse>>(
       `${this.apiUrl}${this.endpoint}`,
       { params }
+    ).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * Download a quote as PDF.
+   * GET /api/quotes/:id/pdf
+   *
+   * @param id Quote ID
+   * @returns PDF binary blob
+   */
+  downloadQuotePdf(id: number): Observable<Blob> {
+    return this.http.get(
+      `${this.apiUrl}${this.endpoint}/${id}/pdf`,
+      { responseType: 'blob' }
+    ).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * Get audit history events for a quote.
+   * GET /api/quotes/:id/history
+   *
+   * @param id Quote ID
+   * @returns history entries ordered by newest first
+   */
+  getQuoteHistory(id: number): Observable<QuoteHistoryEvent[]> {
+    return this.http.get<QuoteHistoryEvent[]>(
+      `${this.apiUrl}${this.endpoint}/${id}/history`
     ).pipe(
       catchError(this.handleError)
     );

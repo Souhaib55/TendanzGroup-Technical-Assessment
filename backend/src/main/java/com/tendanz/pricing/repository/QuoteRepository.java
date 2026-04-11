@@ -1,6 +1,8 @@
 package com.tendanz.pricing.repository;
 
 import com.tendanz.pricing.entity.Quote;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -33,6 +35,29 @@ public interface QuoteRepository extends JpaRepository<Quote, Long> {
      */
     List<Quote> findByProductId(Long productId);
 
+        /**
+         * Paginated variant of product filtering.
+         *
+         * @param productId the product ID to filter by
+         * @param pageable page request configuration
+         * @return paged quote result
+         */
+        Page<Quote> findByProductId(Long productId, Pageable pageable);
+
+        /**
+         * Paginated variant for combined product and minimum price filtering.
+         *
+         * @param productId the product ID
+         * @param minPrice minimum final price (inclusive)
+         * @param pageable page request configuration
+         * @return paged quote result
+         */
+        Page<Quote> findByProductIdAndFinalPriceGreaterThanEqual(
+            Long productId,
+            BigDecimal minPrice,
+            Pageable pageable
+        );
+
     /**
      * Find all quotes where finalPrice is greater than or equal to the given threshold.
      * Uses a custom JPQL query since the derived-name would be too verbose.
@@ -42,4 +67,17 @@ public interface QuoteRepository extends JpaRepository<Quote, Long> {
      */
     @Query("SELECT q FROM Quote q WHERE q.finalPrice >= :minPrice")
     List<Quote> findByFinalPriceGreaterThanOrEqual(@Param("minPrice") BigDecimal minPrice);
+
+    /**
+     * Paginated variant of minimum price filtering.
+     *
+     * @param minPrice minimum final price (inclusive)
+     * @param pageable page request configuration
+     * @return paged quote result
+     */
+    @Query("SELECT q FROM Quote q WHERE q.finalPrice >= :minPrice")
+    Page<Quote> findByFinalPriceGreaterThanOrEqual(
+            @Param("minPrice") BigDecimal minPrice,
+            Pageable pageable
+    );
 }

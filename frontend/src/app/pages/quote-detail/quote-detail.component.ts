@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, ActivatedRoute } from '@angular/router';
 import { QuoteService } from '../../services/quote.service';
-import { QuoteResponse } from '../../models/quote.model';
+import { QuoteHistoryEvent, QuoteResponse } from '../../models/quote.model';
 
 /**
  * Component for displaying the complete details of a single quote.
@@ -17,7 +17,10 @@ import { QuoteResponse } from '../../models/quote.model';
 })
 export class QuoteDetailComponent implements OnInit {
   quote: QuoteResponse | null = null;
+  history: QuoteHistoryEvent[] = [];
   loading = false;
+  historyLoading = false;
+  exportingPdf = false;
   errorMessage: string | null = null;
 
   constructor(
@@ -38,8 +41,49 @@ export class QuoteDetailComponent implements OnInit {
     }
 
     const id = Number(idParam);
-    this.loading = true;
+    this.loadQuote(id);
+    this.loadHistory(id);
+  }
 
+  exportPdf(): void {
+    if (!this.quote || this.exportingPdf) {
+      return;
+    }
+
+    this.exportingPdf = true;
+    this.quoteService.downloadQuotePdf(this.quote.quoteId).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `quote-${this.quote?.quoteId}.pdf`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+        this.exportingPdf = false;
+      },
+      error: (err) => {
+        this.errorMessage = 'Could not export PDF: ' + err.message;
+        this.exportingPdf = false;
+      }
+    });
+  }
+
+  formatHistoryDetails(details: string): string {
+    try {
+      const parsed = JSON.parse(details);
+      if (parsed?.clientName && parsed?.finalPrice !== undefined) {
+        return `Quote created for ${parsed.clientName} with final price ${parsed.finalPrice} TND.`;
+      }
+      return details;
+    } catch {
+      return details;
+    }
+  }
+
+  private loadQuote(id: number): void {
+    this.loading = true;
     this.quoteService.getQuote(id).subscribe({
       next: (quote) => {
         this.quote = quote;
@@ -48,6 +92,21 @@ export class QuoteDetailComponent implements OnInit {
       error: (err) => {
         this.errorMessage = 'Could not load quote: ' + err.message;
         this.loading = false;
+      }
+    });
+  }
+
+  private loadHistory(id: number): void {
+    this.historyLoading = true;
+    this.quoteService.getQuoteHistory(id).subscribe({
+      next: (history) => {
+        this.history = history;
+        this.historyLoading = false;
+      },
+      error: () => {
+        // Keep the quote details visible even if history retrieval fails.
+        this.history = [];
+        this.historyLoading = false;
       }
     });
   }

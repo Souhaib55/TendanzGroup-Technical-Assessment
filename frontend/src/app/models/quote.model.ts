@@ -24,3 +24,25 @@ export interface QuoteResponse {
   appliedRules: string[];
   createdAt: string; // ISO timestamp
 }
+
+/**
+ * Spring-style paginated response wrapper.
+ */
+export interface PaginatedResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+/**
+ * Quote history event returned by backend audit endpoint.
+ */
+export interface QuoteHistoryEvent {
+  id: number;
+  eventType: string;
+  details: string;
+  changedBy: string;
+  changedAt: string;
+}

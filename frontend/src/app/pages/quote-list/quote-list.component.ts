@@ -19,10 +19,16 @@ import { Product } from '../../models/product.model';
 })
 export class QuoteListComponent implements OnInit {
   quotes: QuoteResponse[] = [];
-  filteredQuotes: QuoteResponse[] = [];
   products: Product[] = [];
   loading = false;
   errorMessage: string | null = null;
+
+  // Pagination state
+  currentPage = 0;
+  pageSize = 10;
+  totalPages = 0;
+  totalElements = 0;
+  readonly pageSizeOptions = [5, 10, 20, 50];
 
   // Filter state
   selectedProductId: number | null = null;
@@ -48,20 +54,7 @@ export class QuoteListComponent implements OnInit {
       error: (err) => console.error('Failed to load products for filter:', err.message)
     });
 
-    // Load all quotes
-    this.loading = true;
-    this.quoteService.getQuotes().subscribe({
-      next: (quotes) => {
-        this.quotes = quotes;
-        this.filteredQuotes = [...quotes];
-        this.sortQuotes();
-        this.loading = false;
-      },
-      error: (err) => {
-        this.errorMessage = err.message;
-        this.loading = false;
-      }
-    });
+    this.loadQuotes();
   }
 
   /**
@@ -69,24 +62,8 @@ export class QuoteListComponent implements OnInit {
    * Builds an optional filter object and fetches matching quotes from the backend.
    */
   applyFilters(): void {
-    this.loading = true;
-    this.errorMessage = null;
-
-    const filters: { productId?: number; minPrice?: number } = {};
-    if (this.selectedProductId) filters.productId = Number(this.selectedProductId);
-    if (this.minPrice) filters.minPrice = Number(this.minPrice);
-
-    this.quoteService.getQuotes(filters).subscribe({
-      next: (quotes) => {
-        this.filteredQuotes = quotes;
-        this.sortQuotes();
-        this.loading = false;
-      },
-      error: (err) => {
-        this.errorMessage = err.message;
-        this.loading = false;
-      }
-    });
+    this.currentPage = 0;
+    this.loadQuotes();
   }
 
   /**
@@ -95,8 +72,8 @@ export class QuoteListComponent implements OnInit {
   resetFilters(): void {
     this.selectedProductId = null;
     this.minPrice = null;
-    this.filteredQuotes = [...this.quotes];
-    this.sortQuotes();
+    this.currentPage = 0;
+    this.loadQuotes();
   }
 
   /**
@@ -110,23 +87,56 @@ export class QuoteListComponent implements OnInit {
       this.sortField = field;
       this.sortDirection = 'asc';
     }
-    this.sortQuotes();
+    this.currentPage = 0;
+    this.loadQuotes();
   }
 
-  /**
-   * Sort filteredQuotes in memory by the active field and direction.
-   * - date: sort by createdAt (ISO timestamp string comparison works correctly)
-   * - price: sort by finalPrice (numeric)
-   */
-  private sortQuotes(): void {
-    this.filteredQuotes.sort((a, b) => {
-      let comparison = 0;
-      if (this.sortField === 'date') {
-        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      } else if (this.sortField === 'price') {
-        comparison = a.finalPrice - b.finalPrice;
+  prevPage(): void {
+    if (this.currentPage > 0) {
+      this.currentPage--;
+      this.loadQuotes();
+    }
+  }
+
+  nextPage(): void {
+    if (this.currentPage < this.totalPages - 1) {
+      this.currentPage++;
+      this.loadQuotes();
+    }
+  }
+
+  changePageSize(newSize: number): void {
+    this.pageSize = Number(newSize);
+    this.currentPage = 0;
+    this.loadQuotes();
+  }
+
+  private loadQuotes(): void {
+    this.loading = true;
+    this.errorMessage = null;
+
+    const sortField = this.sortField === 'date' ? 'createdAt' : 'finalPrice';
+    const sort = `${sortField},${this.sortDirection}`;
+
+    this.quoteService.getQuotes({
+      productId: this.selectedProductId ?? undefined,
+      minPrice: this.minPrice ?? undefined,
+      page: this.currentPage,
+      size: this.pageSize,
+      sort
+    }).subscribe({
+      next: (response) => {
+        this.quotes = response.content;
+        this.totalElements = response.totalElements;
+        this.totalPages = response.totalPages;
+        this.currentPage = response.number;
+        this.pageSize = response.size;
+        this.loading = false;
+      },
+      error: (err) => {
+        this.errorMessage = err.message;
+        this.loading = false;
       }
-      return this.sortDirection === 'asc' ? comparison : -comparison;
     });
   }
 

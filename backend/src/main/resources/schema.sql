@@ -42,9 +42,22 @@ CREATE TABLE quote (
     FOREIGN KEY (zone_id) REFERENCES zone(id)
 );
 
+-- Quote History Table
+CREATE TABLE quote_history (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    quote_id BIGINT NOT NULL,
+    event_type VARCHAR(30) NOT NULL,
+    details CLOB NOT NULL,
+    changed_by VARCHAR(100),
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (quote_id) REFERENCES quote(id)
+);
+
 -- Create Indexes
 CREATE INDEX idx_quote_product_id ON quote(product_id);
 CREATE INDEX idx_quote_zone_id ON quote(zone_id);
 CREATE INDEX idx_quote_client_name ON quote(client_name);
 CREATE INDEX idx_quote_created_at ON quote(created_at);
+CREATE INDEX idx_quote_history_quote_id ON quote_history(quote_id);
+CREATE INDEX idx_quote_history_changed_at ON quote_history(changed_at);
 CREATE INDEX idx_pricing_rule_product_id ON pricing_rule(product_id);
