@@ -1,5 +1,8 @@
 <div class="quote-form-container">
-  <h2>Create New Quote</h2>
+  <div class="page-header">
+    <h2>Create New Quote</h2>
+    <p>Enter client and policy details to generate a premium instantly.</p>
+  </div>
 
   <!-- Success message -->
   <div *ngIf="successMessage" class="alert success">
@@ -12,70 +15,71 @@
   </div>
 
   <form [formGroup]="form" (ngSubmit)="onSubmit()" class="form">
-    <!-- Client Name -->
-    <div class="form-group">
-      <label for="clientName">Client Name *</label>
-      <input
-        type="text"
-        id="clientName"
-        formControlName="clientName"
-        placeholder="Enter client name"
-        [class.invalid]="isFieldInvalid('clientName')"
-      />
-      <div *ngIf="isFieldInvalid('clientName')" class="form-error">
-        {{ getErrorMessage('clientName') }}
+    <div class="form-grid">
+      <!-- Client Name -->
+      <div class="form-group form-group-wide">
+        <label for="clientName">Client Name *</label>
+        <input
+          type="text"
+          id="clientName"
+          formControlName="clientName"
+          placeholder="Enter client name"
+          [class.invalid]="isFieldInvalid('clientName')"
+        />
+        <div *ngIf="isFieldInvalid('clientName')" class="form-error">
+          {{ getErrorMessage('clientName') }}
+        </div>
       </div>
-    </div>
 
-    <!-- Product -->
-    <div class="form-group">
-      <label for="productId">Product *</label>
-      <select
-        id="productId"
-        formControlName="productId"
-        [class.invalid]="isFieldInvalid('productId')"
-      >
-        <option value="">-- Select Product --</option>
-        <!-- TODO: Populate with products from API -->
-        <option *ngFor="let product of products" [value]="product.id">
-          {{ product.name }}
-        </option>
-      </select>
-      <div *ngIf="isFieldInvalid('productId')" class="form-error">
-        {{ getErrorMessage('productId') }}
+      <!-- Product -->
+      <div class="form-group">
+        <label for="productId">Product *</label>
+        <select
+          id="productId"
+          formControlName="productId"
+          [class.invalid]="isFieldInvalid('productId')"
+        >
+          <option value="">-- Select Product --</option>
+          <option *ngFor="let product of products" [value]="product.id">
+            {{ product.name }}
+          </option>
+        </select>
+        <div *ngIf="isFieldInvalid('productId')" class="form-error">
+          {{ getErrorMessage('productId') }}
+        </div>
       </div>
-    </div>
 
-    <!-- Zone -->
-    <div class="form-group">
-      <label for="zoneCode">Zone *</label>
-      <select
-        id="zoneCode"
-        formControlName="zoneCode"
-        [class.invalid]="isFieldInvalid('zoneCode')"
-      >
-        <option value="">-- Select Zone --</option>
-        <option *ngFor="let zone of zones" [value]="zone.code">
-          {{ zone.name }}
-        </option>
-      </select>
-      <div *ngIf="isFieldInvalid('zoneCode')" class="form-error">
-        {{ getErrorMessage('zoneCode') }}
+      <!-- Zone -->
+      <div class="form-group">
+        <label for="zoneCode">Zone *</label>
+        <select
+          id="zoneCode"
+          formControlName="zoneCode"
+          [class.invalid]="isFieldInvalid('zoneCode')"
+        >
+          <option value="">-- Select Zone --</option>
+          <option *ngFor="let zone of zones" [value]="zone.code">
+            {{ zone.name }}
+          </option>
+        </select>
+        <div *ngIf="isFieldInvalid('zoneCode')" class="form-error">
+          {{ getErrorMessage('zoneCode') }}
+        </div>
       </div>
-    </div>
 
-    <!-- Client Age -->
-    <div class="form-group">
-      <label for="clientAge">Client Age *</label>
-      <input
-        type="number"
-        id="clientAge"
-        formControlName="clientAge"
-        placeholder="Enter age (18-99)"
-        [class.invalid]="isFieldInvalid('clientAge')"
-      />
-      <div *ngIf="isFieldInvalid('clientAge')" class="form-error">
-        {{ getErrorMessage('clientAge') }}
+      <!-- Client Age -->
+      <div class="form-group form-group-wide">
+        <label for="clientAge">Client Age *</label>
+        <input
+          type="number"
+          id="clientAge"
+          formControlName="clientAge"
+          placeholder="Enter age (18-99)"
+          [class.invalid]="isFieldInvalid('clientAge')"
+        />
+        <div *ngIf="isFieldInvalid('clientAge')" class="form-error">
+          {{ getErrorMessage('clientAge') }}
+        </div>
       </div>
     </div>
 

@@ -1,21 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700&display=swap');
+
 :root {
-  --primary-color: #1F3864;
-  --primary-light: #2d4a7f;
-  --primary-dark: #152850;
-  --secondary-color: #f0f2f5;
-  --text-color: #333;
-  --text-light: #666;
-  --border-color: #ddd;
-  --success-color: #28a745;
-  --danger-color: #dc3545;
-  --warning-color: #ffc107;
+  --primary-color: #445b6d;
+  --primary-light: #5f7688;
+  --primary-dark: #2f4353;
+  --primary-soft: #e7eef3;
+  --secondary-color: #f2f6f9;
+  --surface-color: #ffffff;
+  --surface-tint: #f8fbfd;
+  --text-color: #263746;
+  --text-light: #5d7284;
+  --border-color: #d5dfe7;
+  --success-color: #2b8a68;
+  --danger-color: #c84c5d;
+  --warning-color: #d89c2d;
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
   --spacing-xl: 32px;
-  --border-radius: 4px;
-  --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --border-radius: 14px;
+  --border-radius-lg: 20px;
+  --shadow-sm: 0 8px 24px rgba(40, 60, 80, 0.08);
+  --shadow: 0 16px 44px rgba(36, 55, 74, 0.12);
+  --shadow-strong: 0 24px 68px rgba(24, 39, 53, 0.16);
 }
 
 * {
@@ -26,15 +34,43 @@
 
 html, body {
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
   font-size: 16px;
   line-height: 1.5;
   color: var(--text-color);
-  background-color: #fff;
+  background: radial-gradient(circle at 10% -10%, #dce8f1 0%, #eef4f8 40%, #f6f9fc 100%);
 }
 
 body {
   margin: 0;
+  position: relative;
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  z-index: -1;
+  border-radius: 50%;
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+body::before {
+  width: 340px;
+  height: 340px;
+  background: radial-gradient(circle, rgba(68, 91, 109, 0.12) 0%, rgba(68, 91, 109, 0) 72%);
+  top: -120px;
+  right: -60px;
+}
+
+body::after {
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle, rgba(95, 118, 136, 0.1) 0%, rgba(95, 118, 136, 0) 70%);
+  left: -140px;
+  bottom: -150px;
 }
 
 a {
@@ -51,29 +87,32 @@ button {
   cursor: pointer;
   font-family: inherit;
   font-size: 1rem;
-  border: none;
-  border-radius: var(--border-radius);
-  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-weight: 700;
   transition: all 0.2s ease;
 }
 
 button.primary {
-  background-color: var(--primary-color);
+  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 100%);
   color: white;
+  box-shadow: 0 12px 28px rgba(47, 67, 83, 0.28);
 }
 
 button.primary:hover {
-  background-color: var(--primary-light);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px rgba(47, 67, 83, 0.33);
 }
 
 button.secondary {
-  background-color: var(--secondary-color);
+  background-color: #ffffff;
   color: var(--text-color);
   border: 1px solid var(--border-color);
 }
 
 button.secondary:hover {
-  background-color: #e8eaed;
+  background-color: var(--secondary-color);
 }
 
 button:disabled {
@@ -84,17 +123,19 @@ button:disabled {
 input, select, textarea {
   font-family: inherit;
   font-size: 1rem;
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: 11px 14px;
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  border-radius: 12px;
+  background-color: #ffffff;
   width: 100%;
   max-width: 100%;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(31, 56, 100, 0.1);
+  box-shadow: 0 0 0 4px rgba(68, 91, 109, 0.14);
 }
 
 label {
@@ -142,17 +183,17 @@ tr:hover {
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 0 var(--spacing-md);
+  padding: 0 20px;
 }
 
 .card {
-  background: white;
+  background: linear-gradient(180deg, var(--surface-color) 0%, var(--surface-tint) 100%);
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius);
+  border-radius: var(--border-radius-lg);
   padding: var(--spacing-lg);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-sm);
   margin-bottom: var(--spacing-lg);
 }
 
@@ -175,7 +216,7 @@ tr:hover {
 .alert {
   padding: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
-  border-radius: var(--border-radius);
+  border-radius: 12px;
   border-left: 4px solid;
 }
 

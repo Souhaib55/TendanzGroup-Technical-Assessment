@@ -1,9 +1,15 @@
 <nav class="navbar">
   <div class="container">
     <div class="navbar-content">
-      <h1 class="navbar-brand">{{ title }}</h1>
+      <a class="brand-block" routerLink="/quotes">
+        <img class="brand-logo" src="assets/logo.png" alt="Tendanz Group logo" />
+        <div class="brand-text">
+          <span class="brand-title">{{ title }}</span>
+          <span class="brand-subtitle">Tendanz Group</span>
+        </div>
+      </a>
       <ul class="navbar-nav">
-        <li><a routerLink="/quotes" routerLinkActive="active">Quotes</a></li>
+        <li><a routerLink="/quotes" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Quotes</a></li>
         <li><a routerLink="/quotes/new" routerLinkActive="active">New Quote</a></li>
       </ul>
     </div>
